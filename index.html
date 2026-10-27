@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auction Game — Prototype</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #1a1a1f;
+    color: #e8e8e8;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 10px;
+  }
+  #game {
+    width: 1000px;
+    max-width: 100%;
+    background: #26262e;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,.6);
+    display: flex;
+    flex-direction: column;
+    height: 700px;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: #2f2f3a;
+    border-bottom: 2px solid #3d3d4a;
+  }
+  header h1 { font-size: 18px; color: #f0c040; }
+  #money { font-size: 20px; font-weight: bold; color: #4cd964; }
+  main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  #left, #right {
+    padding: 16px;
+    overflow-y: auto;
+  }
+  #left { flex: 1.2; border-right: 2px solid #3d3d4a; }
+  #right { flex: 1; }
+  h2 { font-size: 15px; color: #9a9aa8; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .item {
+    background: #33333f;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: .15s;
+  }
+  .item:hover { background: #3d3d4a; }
+  .item.selected { border-color: #f0c040; background: #3d3d4a; }
+  .item .name { font-weight: bold; font-size: 15px; }
+  .item .meta { font-size: 12px; color: #9a9aa8; margin-top: 4px; }
+  .item .price { color: #4cd964; font-weight: bold; }
+  .item .status-dirty { color: #e8a040; }
+  .item .status-broken { color: #e05050; }
+  .item .status-ok { color: #4cd964; }
+  #log {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #b0b0c0;
+  }
+  #log div { padding: 3px 0; border-bottom: 1px dashed #3d3d4a; }
+  footer {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #2f2f3a;
+    border-top: 2px solid #3d3d4a;
+    flex-wrap: wrap;
+  }
+  button {
+    flex: 1;
+    min-width: 120px;
+    padding: 12px 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #fff;
+    background: #4a6fd4;
+    transition: .15s;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.15); transform: translateY(-1px); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.buy { background: #4a6fd4; }
+  button.wash { background: #3a9ad9; }
+  button.fix { background: #d98a3a; }
+  button.sell { background: #3aad5a; }
+  button.settings { background: #6a6a7a; }
+
+  /* Модалки */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+  }
+  .modal-bg.active { display: flex; }
+  .modal {
+    background: #26262e;
+    border: 2px solid #3d3d4a;
+    border-radius: 14px;
+    padding: 24px;
+    width: 420px;
+    max-width: 92%;
+    text-align: center;
+  }
+  .modal h3 { color: #f0c040; margin-bottom: 14px; font-size: 18px; }
+  .modal p { font-size: 14px; color: #b0b0c0; margin-bottom: 14px; line-height: 1.5; }
+  .modal .actions { display: flex; gap: 10px; margin-top: 16px; }
+
+  /* Мини-игра мытья */
+  #washCanvas {
+    background: #2a2a35;
+    border-radius: 10px;
+    cursor: crosshair;
+    touch-action: none;
+    display: block;
+    margin: 0 auto;
+  }
+  #washProgress {
+    height: 10px;
+    background: #3d3d4a;
+    border-radius: 5px;
+    margin-top: 12px;
+    overflow: hidden;
+  }
+  #washBar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #3a9ad9, #4cd964);
+    transition: width .1s;
+  }
+
+  /* Мини-игра ремонта */
+  #fixGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin: 14px 0;
+  }
+  .fix-cell {
+    aspect-ratio: 1;
+    background: #3d3d4a;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    transition: .1s;
+  }
+  .fix-cell.active { background: #d98a3a; }
+  .fix-cell.done { background: #3aad5a; cursor: default; }
+
+  /* Настройки */
+  .settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #3d3d4a;
+    font-size: 14px;
+  }
+  .settings-row input[type=range] { width: 140px; }
+  .settings-row select {
+    background: #33333f; color: #e8e8e8; border: 1px solid #3d3d4a;
+    border-radius: 6px; padding: 6px 10px; font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div id="game">
+  <header>
+    <h1>🔨 Auction Game</h1>
+    <div id="money">0 ₽</div>
+  </header>
+  <main>
+    <div id="left">
+      <h2>Контейнер</h2>
+      <div id="items"></div>
+    </div>
+    <div id="right">
+      <h2>Лог</h2>
+      <div id="log"></div>
+    </div>
+  </main>
+  <footer>
+    <button class="buy" id="btnBuy">🛒 Купить (1500₽)</button>
+    <button class="wash" id="btnWash">🧼 Мыть (200₽)</button>
+    <button class="fix" id="btnFix">🔧 Чинить (500₽)</button>
+    <button class="sell" id="btnSell">💰 Продать</button>
+    <button class="settings" id="btnSettings">⚙️ Настройки</button>
+  </footer>
+</div>
+
+<!-- Модалка мытья -->
+<div class="modal-bg" id="washModal">
+  <div class="modal">
+    <h3>🧼 Мойка предмета</h3>
+    <p>Три мышкой (или пальцем) по грязи, чтобы отмыть. Не переусердствуй!</p>
+    <canvas id="washCanvas" width="360" height="240"></canvas>
+    <div id="washProgress"><div id="washBar"></div></div>
+    <div class="actions">
+      <button class="settings" id="washCancel">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка ремонта -->
+<div class="modal-bg" id="fixModal">
+  <div class="modal">
+    <h3>🔧 Ремонт предмета</h3>
+    <p>Нажимай на ячейки по порядку: 1 → 2 → 3 → 4 → 5. Ошибка — начинай заново.</p>
+    <div id="fixGrid"></div>
+    <div class="actions">
+      <button class="settings" id="fixCancel">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка настроек -->
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <h3>⚙️ Настройки</h3>
+    <div class="settings-row">
+      <span>Громкость</span>
+      <input type="range" id="volume" min="0" max="100" value="70">
+    </div>
+    <div class="settings-row">
+      <span>Сложность ботов</span>
+      <select id="difficulty">
+        <option value="easy">Лёгкая</option>
+        <option value="normal" selected>Обычная</option>
+        <option value="hard">Сложная</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <span>Автосохранение</span>
+      <input type="checkbox" id="autosave" checked>
+    </div>
+    <div class="settings-row">
+      <span>Сброс прогресса</span>
+      <button class="fix" style="flex:0;min-width:auto;padding:6px 14px;" id="btnReset">Сбросить</button>
+    </div>
+    <div class="actions">
+      <button class="sell" id="settingsClose">Готово</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==============================
+   ДАННЫЕ И ГЕНЕРАЦИЯ (40к вариантов)
+   ============================== */
+const BRANDS = {
+  phones: [["iPhone 12","Apple",25000],["iPhone 14","Apple",60000],["Galaxy S21","Samsung",20000],
+           ["Galaxy A52","Samsung",12000],["Redmi Note 10","Xiaomi",8000],["Poco X3","Xiaomi",10000],
+           ["Nokia 3310","Nokia",3000],["Pixel 6","Google",30000]],
+  wheels: [["BBS CH-R","BBS",40000],["Enkei RPF1","Enkei",30000],["Replica R17","Replica",5000],
+           ["OZ Racing","OZ",45000],["K&K R18","K&K",15000]],
+  caps:   [["Baseball Cap","Nike",2000],["Snapback","Adidas",1500],["Bucket Hat","Gucci",12000],
+           ["Trucker Hat","Puma",1800],["Beanie","The North Face",2500]],
+  belts:  [["Leather Belt","Zara",1000],["Classic Belt","Gucci",15000],["Sport Belt","Puma",1200],
+           ["Vintage Belt","Levi's",3000]],
+  electronics: [["Bluetooth Speaker","JBL",6000],["Headphones","Sony",10000],["Vacuum","Dyson",25000],
+                ["Smartwatch","Garmin",18000],["Powerbank","Anker",3500]]
+};
+const COLORS = ["чёрный","белый","серый","синий","красный","зелёный","жёлтый","серебристый","золотой","розовый"];
+const CONDITIONS = ["грязный","сломан","царапины","чистый"];
+const COND_WEIGHTS = [40, 20, 30, 10];
+
+function rnd(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function weightedCondition() {
+  const r = Math.random() * 100;
+  let acc = 0;
+  for (let i = 0; i < CONDITIONS.length; i++) {
+    acc += COND_WEIGHTS[i];
+    if (r < acc) return CONDITIONS[i];
+  }
+  return "грязный";
+}
+
+let ITEM_ID = 1;
+function generateItem() {
+  const cat = rnd(Object.keys(BRANDS));
+  const [name, brand, base] = rnd(BRANDS[cat]);
+  const color = rnd(COLORS);
+  const cond = weightedCondition();
+  return {
+    id: ITEM_ID++,
+    name, brand, category: cat, color,
+    basePrice: base,
+    condition: cond,
+    isClean: cond === "чистый",
+    isFixed: false
+  };
+}
+
+function generateContainer(n = 3) {
+  return Array.from({length: n}, generateItem);
+}
+
+function itemPrice(item) {
+  let p = item.basePrice;
+  if (item.condition === "грязный") p *= 0.3;
+  else if (item.condition === "сломан") p *= 0.2;
+  else if (item.condition === "царапины") p *= 0.6;
+  if (item.isClean) p *= 1.5;
+  if (item.isFixed) p *= 1.8;
+  return Math.max(10, Math.round(p));
+}
+
+/* ==============================
+   СОСТОЯНИЕ ИГРЫ
+   ============================== */
+const state = {
+  money: 5000,
+  container: [],
+  selected: 0,
+  log: [],
+  settings: { volume: 70, difficulty: "normal", autosave: true }
+};
+
+function addLog(msg) {
+  state.log.unshift(msg);
+  if (state.log.length > 8) state.log.pop();
+  render();
+}
+
+/* ==============================
+   АУКЦИОН (боты)
+   ============================== */
+const BIDDERS = ["Bot_Alex","Bot_Maria","Bot_Collector","Bot_Dealer"];
+function simulateAuction(item) {
+  const real = itemPrice(item);
+  const diff = state.settings.difficulty;
+  const aggression = diff === "easy" ? 0.8 : diff === "hard" ? 1.2 : 1.0;
+
+  let price = Math.max(100, Math.round(real * 0.4));
+  let winner = null;
+
+  for (let i = 0; i < 5; i++) {
+    const bidder = rnd(BIDDERS);
+    if (bidder === winner) continue;
+    if (Math.random() < 0.55 * aggression) {
+      price = Math.round(price * (1.05 + Math.random() * 0.2));
+      winner = bidder;
+    }
+  }
+  return winner ? { price, winner } : null;
+}
+
+/* ==============================
+   РЕНДЕР
+   ============================== */
+const $money = document.getElementById("money");
+const $items = document.getElementById("items");
+const $log = document.getElementById("log");
+const $btnBuy = document.getElementById("btnBuy");
+const $btnWash = document.getElementById("btnWash");
+const $btnFix = document.getElementById("btnFix");
+const $btnSell = document.getElementById("btnSell");
+
+function render() {
+  $money.textContent = state.money.toLocaleString("ru-RU") + " ₽";
+
+  $items.innerHTML = "";
+  if (state.container.length === 0) {
+    $items.innerHTML = '<p style="color:#6a6a7a;font-size:14px;">Пусто. Купи контейнер.</p>';
+  } else {
+    state.container.forEach((it, i) => {
+      const div = document.createElement("div");
+      div.className = "item" + (i === state.selected ? " selected" : "");
+      const status = [];
+      if (!it.isClean) status.push('<span class="status-dirty">грязный</span>');
+      if (!it.isFixed) status.push('<span class="status-broken">сломан</span>');
+      if (it.isClean && it.isFixed) status.push('<span class="status-ok">готов</span>');
+      div.innerHTML = `
+        <div class="name">${it.brand} ${it.name} <span style="color:#6a6a7a;font-size:12px;">(${it.color})</span></div>
+        <div class="meta">${status.join(" · ")} · <span class="price">${itemPrice(it)}₽</span></div>
+      `;
+      div.onclick = () => { state.selected = i; render(); };
+      $items.appendChild(div);
+    });
+  }
+
+  $log.innerHTML = state.log.map(m => `<div>${m}</div>`).join("");
+
+  $btnBuy.disabled = state.money < 1500;
+  $btnWash.disabled = state.container.length === 0 || state.container[state.selected]?.isClean;
+  $btnFix.disabled = state.container.length === 0 || state.container[state.selected]?.isFixed;
+  $btnSell.disabled = state.container.length === 0;
+}
+
+/* ==============================
+   ДЕЙСТВИЯ
+   ============================== */
+$btnBuy.onclick = () => {
+  if (state.money < 1500) return;
+  state.money -= 1500;
+  state.container = generateContainer(3);
+  state.selected = 0;
+  addLog("🛒 Куплен контейнер за 1500₽");
+};
+
+$btnSell.onclick = () => {
+  const it = state.container[state.selected];
+  if (!it) return;
+  const res = simulateAuction(it);
+  if (res) {
+    state.money += res.price;
+    addLog(`💰 Продано ${it.name} за ${res.price}₽ (${res.winner})`);
+  } else {
+    addLog(`😞 ${it.name} не продан`);
+  }
+  state.container.splice(state.selected, 1);
+  state.selected = 0;
+  render();
+};
+
+/* ==============================
+   МИНИ-ИГРА: МЫТЬЁ
+   ============================== */
+const $washModal = document.getElementById("washModal");
+const $washCanvas = document.getElementById("washCanvas");
+const $washBar = document.getElementById("washBar");
+const washCtx = $washCanvas.getContext("2d");
+let washState = null;
+
+$btnWash.onclick = () => {
+  const it = state.container[state.selected];
+  if (!it || it.isClean) return;
+  if (state.money < 200) return addLog("❌ Нет денег на мытьё (200₽)");
+  washState = { cleaned: 0, target: 0.75, item: it };
+  $washBar.style.width = "0%";
+  $washModal.classList.add("active");
+  initWashCanvas();
+};
+
+function initWashCanvas() {
+  const w = $washCanvas.width, h = $washCanvas.height;
+  washCtx.fillStyle = "#2a2a35";
+  washCtx.fillRect(0, 0, w, h);
+  // Рисуем предмет
+  washCtx.fillStyle = "#555";
+  washCtx.beginPath();
+  washCtx.roundRect(w/2 - 80, h/2 - 80, 160, 160, 16);
+  washCtx.fill();
+  // Грязь
+  washCtx.fillStyle = "#6b5a3a";
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * (w - 100) + 50;
+    const y = Math.random() * (h - 100) + 50;
+    const r = Math.random() * 12 + 4;
+    washCtx.beginPath();
+    washCtx.arc(x, y, r, 0, Math.PI * 2);
+    washCtx.fill();
+  }
+  washState.cleaned = 0;
+}
+
+let washing = false;
+function washAt(x, y) {
+  const rect = $washCanvas.getBoundingClientRect();
+  const scaleX = $washCanvas.width / rect.width;
+  const scaleY = $washCanvas.height / rect.height;
+  const cx = (x - rect.left) * scaleX;
+  const cy = (y - rect.top) * scaleY;
+
+  washCtx.globalCompositeOperation = "destination-out";
+  washCtx.beginPath();
+  washCtx.arc(cx, cy, 22, 0, Math.PI * 2);
+  washCtx.fill();
+  washCtx.globalCompositeOperation = "source-over";
+
+  // Считаем прогресс по прозрачным пикселям
+  const img = washCtx.getImageData(0, 0, $washCanvas.width, $washCanvas.height);
+  let transparent = 0;
+  for (let i = 3; i < img.data.length; i += 4) if (img.data[i] < 50) transparent++;
+  const progress = transparent / (img.data.length / 4);
+  washState.cleaned = progress;
+  $washBar.style.width = Math.min(100, progress * 100 / washState.target) + "%";
+
+  if (progress >= washState.target) finishWash(true);
+}
+
+function finishWash(success) {
+  if (!washState) return;
+  if (success) {
+    state.money -= 200;
+    washState.item.isClean = true;
+    addLog(`🧼 Помыто: ${washState.item.name} (-200₽)`);
+  }
+  washState = null;
+  $washModal.classList.remove("active");
+  render();
+}
+
+$washCanvas.addEventListener("mousedown", e => { washing = true; washAt(e.clientX, e.clientY); });
+$washCanvas.addEventListener("mousemove", e => { if (washing) washAt(e.clientX, e.clientY); });
+window.addEventListener("mouseup", () => washing = false);
+$washCanvas.addEventListener("touchstart", e => { e.preventDefault(); washing = true; washAt(e.touches[0].clientX, e.touches[0].clientY); });
+$washCanvas.addEventListener("touchmove", e => { e.preventDefault(); if (washing) washAt(e.touches[0].clientX, e.touches[0].clientY); });
+window.addEventListener("touchend", () => washing = false);
+document.getElementById("washCancel").onclick = () => {
+  washState = null;
+  $washModal.classList.remove("active");
+};
+
+/* ==============================
+   МИНИ-ИГРА: РЕМОНТ
+   ============================== */
+const $fixModal = document.getElementById("fixModal");
+const $fixGrid = document.getElementById("fixGrid");
+let fixState = null;
+
+$btnFix.onclick = () => {
+  const it = state.container[state.selected];
+  if (!it || it.isFixed) return;
+  if (state.money < 500) return addLog("❌ Нет денег на ремонт (500₽)");
+  const order = [1,2,3,4,5,6,7,8,9,10,11,12].sort(() => Math.random() - 0.5).slice(0, 5);
+  fixState = { item: it, order, step: 0 };
+  $fixModal.classList.add("active");
+  renderFixGrid();
+};
+
+function renderFixGrid() {
+  $fixGrid.innerHTML = "";
+  for (let i = 0; i < 12; i++) {
+    const cell = document.createElement("div");
+    cell.className = "fix-cell";
+    const num = fixState.order[fixState.step];
+    if (i === num) cell.classList.add("active");
+    if (fixState.order.slice(0, fixState.step).includes(i)) cell.classList.add("done");
+    cell.textContent = fixState.order.slice(0, fixState.step).includes(i) ? "✓" : "";
+    cell.onclick = () => handleFixClick(i);
+    $fixGrid.appendChild(cell);
+  }
+}
+
+function handleFixClick(i) {
+  if (!fixState) return;
+  const expected = fixState.order[fixState.step];
+  if (i === expected) {
+    fixState.step++;
+    if (fixState.step >= fixState.order.length) {
+      state.money -= 500;
+      fixState.item.isFixed = true;
+      addLog(`🔧 Отремонтировано: ${fixState.item.name} (-500₽)`);
+      fixState = null;
+      $fixModal.classList.remove("active");
+      render();
+      return;
+    }
+    renderFixGrid();
+  } else {
+    // Ошибка — начинаем заново
+    fixState.step = 0;
+    addLog("⚠️ Ошибка! Ремонт начат заново");
+    renderFixGrid();
+  }
+}
+document.getElementById("fixCancel").onclick = () => {
+  fixState = null;
+  $fixModal.classList.remove("active");
+};
+
+/* ==============================
+   НАСТРОЙКИ
+   ============================== */
+const $settingsModal = document.getElementById("settingsModal");
+document.getElementById("btnSettings").onclick = () => {
+  document.getElementById("volume").value = state.settings.volume;
+  document.getElementById("difficulty").value = state.settings.difficulty;
+  document.getElementById("autosave").checked = state.settings.autosave;
+  $settingsModal.classList.add("active");
+};
+document.getElementById("settingsClose").onclick = () => {
+  state.settings.volume = +document.getElementById("volume").value;
+  state.settings.difficulty = document.getElementById("difficulty").value;
+  state.settings.autosave = document.getElementById("autosave").checked;
+  $settingsModal.classList.remove("active");
+  addLog("⚙️ Настройки сохранены");
+};
+document.getElementById("btnReset").onclick = () => {
+  if (confirm("Сбросить весь прогресс?")) {
+    state.money = 5000;
+    state.container = [];
+    state.selected = 0;
+    state.log = [];
+    addLog("🔄 Прогресс сброшен");
+    $settingsModal.classList.remove("active");
+  }
+};
+
+/* ==============================
+   СТАРТ
+   ============================== */
+addLog("Добро пожаловать на аукцион! Купи контейнер, чтобы начать.");
+render();
+</script>
+</body>
+</html>
