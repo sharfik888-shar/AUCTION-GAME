@@ -3,282 +3,467 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Auction Game v2</title>
+<title>Auction Game v3</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #121216; --panel: #1e1e24; --panel2: #282830; --panel3: #33333f;
+    --border: #3d3d4a; --text: #e8e8e8; --muted: #9a9aa8; --accent: #f0c040;
+    --green: #4cd964; --blue: #3a9ad9; --orange: #d98a3a; --red: #e05050;
+    --purple: #8a5cf6;
+  }
+  html { scroll-behavior: smooth; }
   body {
-    font-family: 'Segoe UI', Arial, sans-serif; background: #121216; color: #e8e8e8;
-    display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 10px;
+    font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text);
+    display: flex; justify-content: center; min-height: 100vh; padding: 10px;
   }
   #game {
-    width: 1000px; max-width: 100%; background: #1e1e24; border-radius: 12px;
+    width: 1100px; max-width: 100%; background: var(--panel); border-radius: 14px;
     overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.8);
-    display: flex; flex-direction: column; height: 750px;
+    display: flex; flex-direction: column; height: 820px; position: relative;
   }
+
+  /* HUD */
   header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 12px 20px; background: #282830; border-bottom: 2px solid #3d3d4a;
+    padding: 10px 18px; background: var(--panel2); border-bottom: 2px solid var(--border);
+    flex-wrap: wrap; gap: 10px;
   }
-  header h1 { font-size: 18px; color: #f0c040; }
-  .header-right { display: flex; align-items: center; gap: 15px; }
-  #reputation { font-size: 12px; color: #a0a0b0; text-align: right; }
-  #money { font-size: 20px; font-weight: bold; color: #4cd964; }
-  
+  header h1 { font-size: 17px; color: var(--accent); white-space: nowrap; }
+  .hud { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .hud-block { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); }
+  .hud-block b { font-size: 15px; color: var(--text); }
+  #money { font-size: 20px; font-weight: bold; color: var(--green); }
+  .exp-bar { width: 120px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+  .exp-bar div { height: 100%; width: 0%; background: linear-gradient(90deg, var(--blue), var(--green)); transition: width .3s; }
+  .hud-btn {
+    background: var(--panel3); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 16px;
+  }
+  .hud-btn:hover { background: var(--border); }
+
+  /* Event banner */
+  .event-banner {
+    background: linear-gradient(90deg, var(--purple), var(--blue)); color: #fff;
+    padding: 8px; text-align: center; font-size: 13px; font-weight: bold; display: none;
+  }
+  .event-banner.active { display: block; animation: fadeIn .4s; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+  /* Main layout */
   main { flex: 1; display: flex; overflow: hidden; }
-  #left, #right { padding: 16px; overflow-y: auto; }
-  #left { flex: 1.2; border-right: 2px solid #3d3d4a; }
-  #right { flex: 1; background: #1a1a1f; }
-  h2 { font-size: 14px; color: #9a9aa8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
-  
+  .col { padding: 14px; overflow-y: auto; }
+  #shopCol { flex: 1.25; border-right: 2px solid var(--border); }
+  #invCol { flex: 1.2; border-right: 2px solid var(--border); background: #1a1a1f; }
+  #sideCol { flex: 1; background: #1a1a1f; }
+  h2 { font-size: 12px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Контейнеры */
+  .container-shop { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .cont-card {
+    flex: 1; min-width: 130px; padding: 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--panel2); text-align: center; transition: .15s; display: flex; flex-direction: column; gap: 6px;
+  }
+  .cont-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .cont-card.disabled { opacity: .45; }
+  .cont-card .icon { font-size: 26px; }
+  .cont-card .title { font-weight: bold; font-size: 14px; }
+  .cont-card .rarity-hint { font-size: 11px; color: var(--muted); }
+  .cont-card .price { font-size: 13px; color: var(--green); font-weight: bold; }
+  .cont-card .missing { font-size: 11px; color: var(--red); }
+  .cont-card .cta {
+    margin-top: 4px; padding: 8px; border: none; border-radius: 7px; background: var(--accent);
+    color: #222; font-weight: bold; cursor: pointer; font-size: 13px;
+  }
+  .cont-card .cta:hover:not(:disabled) { filter: brightness(1.1); }
+  .cont-card .cta:disabled { background: var(--panel3); color: var(--muted); cursor: not-allowed; }
+
+  /* Инвентарь — сетка */
+  .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .inv-card {
+    background: var(--panel2); border: 2px solid var(--border); border-radius: 10px;
+    padding: 10px; cursor: pointer; transition: .15s; position: relative; overflow: hidden;
+  }
+  .inv-card:hover { background: var(--panel3); transform: translateY(-2px); }
+  .inv-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(240,192,64,.3); }
+  .inv-card.rarity-common { border-left: 4px solid #888; }
+  .inv-card.rarity-rare { border-left: 4px solid var(--blue); }
+  .inv-card.rarity-legendary { border-left: 4px solid var(--accent); box-shadow: 0 0 14px rgba(240,192,64,.25); }
+  .inv-card .inv-icon { font-size: 30px; text-align: center; margin-bottom: 6px; }
+  .inv-card .inv-name { font-weight: bold; font-size: 13px; line-height: 1.25; }
+  .inv-card .inv-brand { font-size: 11px; color: var(--muted); }
+  .inv-card .inv-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+  .tag { font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: bold; }
+  .tag-dirty { background: rgba(217,138,58,.2); color: var(--orange); }
+  .tag-broken { background: rgba(224,80,80,.2); color: var(--red); }
+  .tag-ok { background: rgba(76,217,100,.2); color: var(--green); }
+  .tag-rare { background: rgba(58,154,217,.2); color: var(--blue); }
+  .tag-legend { background: rgba(240,192,64,.2); color: var(--accent); }
+  .inv-card .inv-price { font-size: 14px; color: var(--green); font-weight: bold; text-align: right; }
+  .inv-card .inv-actions { display: flex; gap: 4px; margin-top: 8px; }
+  .inv-card .inv-actions button {
+    flex: 1; padding: 6px; font-size: 11px; border-radius: 6px; border: none; cursor: pointer;
+    color: #fff; font-weight: bold;
+  }
+  .inv-card .inv-actions button:disabled { opacity: .35; cursor: not-allowed; }
+
   /* Вкладки */
-  .tabs { display: flex; gap: 5px; margin-bottom: 10px; }
-  .tab { padding: 6px 12px; background: #282830; border-radius: 6px; cursor: pointer; font-size: 13px; color: #9a9aa8; }
-  .tab.active { background: #3d3d4a; color: #fff; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tab {
+    padding: 7px 12px; background: var(--panel2); border-radius: 8px; cursor: pointer;
+    font-size: 12px; color: var(--muted); border: 1px solid transparent; transition: .15s;
+  }
+  .tab:hover { background: var(--panel3); }
+  .tab.active { background: var(--panel3); color: #fff; border-color: var(--accent); }
   .tab-content { display: none; }
   .tab-content.active { display: block; }
 
-  /* Контейнеры */
-  .container-shop { display: flex; gap: 10px; margin-bottom: 20px; }
-  .cont-btn {
-    flex: 1; padding: 10px; border: 1px solid #3d3d4a; border-radius: 8px;
-    background: #282830; cursor: pointer; text-align: center; transition: .15s;
-  }
-  .cont-btn:hover { background: #33333f; border-color: #f0c040; }
-  .cont-btn .title { font-weight: bold; font-size: 14px; color: #fff; }
-  .cont-btn .price { font-size: 12px; color: #4cd964; margin-top: 4px; }
-  .cont-btn.disabled { opacity: .5; pointer-events: none; }
+  #log { font-size: 12.5px; line-height: 1.5; color: #b0b0c0; }
+  #log div { padding: 5px 0; border-bottom: 1px dashed var(--border); }
+  .stat-row { display: flex; justify-content: space-between; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--panel3); }
+  .stat-val { color: var(--accent); font-weight: bold; }
 
-  /* Предметы */
-  .item {
-    background: #282830; border: 2px solid transparent; border-radius: 8px;
-    padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: .15s;
-  }
-  .item:hover { background: #33333f; }
-  .item.selected { border-color: #f0c040; background: #33333f; }
-  .item.rarity-common { border-left: 4px solid #888; }
-  .item.rarity-rare { border-left: 4px solid #4a6fd4; }
-  .item.rarity-legendary { border-left: 4px solid #f0c040; box-shadow: 0 0 10px rgba(240,192,64,0.2); }
-  .item .name { font-weight: bold; font-size: 15px; }
-  .item .meta { font-size: 12px; color: #9a9aa8; margin-top: 4px; display: flex; justify-content: space-between; }
-  .item .price { color: #4cd964; font-weight: bold; }
-  .status-dirty { color: #e8a040; }
-  .status-broken { color: #e05050; }
-  .status-ok { color: #4cd964; }
+  /* Коллекции */
+  .collection { background: var(--panel2); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+  .collection .c-title { font-size: 13px; font-weight: bold; }
+  .collection .c-progress { height: 6px; background: var(--border); border-radius: 3px; margin: 6px 0; overflow: hidden; }
+  .collection .c-progress div { height: 100%; background: var(--purple); width: 0%; }
+  .collection .c-desc { font-size: 11px; color: var(--muted); }
 
-  #log { font-size: 13px; line-height: 1.5; color: #b0b0c0; }
-  #log div { padding: 4px 0; border-bottom: 1px dashed #3d3d4a; }
-  
-  /* Статистика */
-  .stat-row { display: flex; justify-content: space-between; font-size: 13px; padding: 8px 0; border-bottom: 1px solid #33333f; }
-  .stat-val { color: #f0c040; font-weight: bold; }
+  /* Достижения / задания */
+  .ach { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--panel3); font-size: 12.5px; }
+  .ach.done { color: var(--green); }
+  .ach .ach-reward { font-size: 11px; color: var(--accent); }
 
-  footer { display: flex; gap: 8px; padding: 12px 16px; background: #282830; border-top: 2px solid #3d3d4a; flex-wrap: wrap; }
-  button {
-    flex: 1; min-width: 100px; padding: 12px 10px; border: none; border-radius: 8px;
-    font-size: 14px; font-weight: bold; cursor: pointer; color: #fff; transition: .15s;
+  /* Footer — действия */
+  footer {
+    display: flex; gap: 8px; padding: 10px 14px; background: var(--panel2);
+    border-top: 2px solid var(--border); flex-wrap: wrap; align-items: center;
   }
-  button:hover:not(:disabled) { filter: brightness(1.15); transform: translateY(-1px); }
-  button:disabled { opacity: .3; cursor: not-allowed; }
-  .btn-wash { background: #3a9ad9; }
-  .btn-fix { background: #d98a3a; }
-  .btn-sell { background: #3aad5a; }
+  footer .hint { font-size: 11px; color: var(--muted); flex: 1; min-width: 120px; }
+  button { font-family: inherit; }
+  .btn {
+    padding: 10px 14px; border: none; border-radius: 8px; font-size: 13px; font-weight: bold;
+    cursor: pointer; color: #fff; transition: .15s;
+  }
+  .btn:hover:not(:disabled) { filter: brightness(1.15); transform: translateY(-1px); }
+  .btn:disabled { opacity: .3; cursor: not-allowed; }
+  .btn-wash { background: var(--blue); }
+  .btn-fix { background: var(--orange); }
+  .btn-sell { background: var(--green); }
   .btn-settings { background: #6a6a7a; }
 
   /* Модалки */
-  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: none; justify-content: center; align-items: center; z-index: 100; }
-  .modal-bg.active { display: flex; }
-  .modal { background: #1e1e24; border: 2px solid #3d3d4a; border-radius: 14px; padding: 24px; width: 440px; max-width: 95%; text-align: center; }
-  .modal h3 { color: #f0c040; margin-bottom: 14px; font-size: 18px; }
-  .modal p { font-size: 14px; color: #b0b0c0; margin-bottom: 14px; line-height: 1.5; }
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.8); display: none;
+    justify-content: center; align-items: center; z-index: 100; padding: 10px;
+    backdrop-filter: blur(3px);
+  }
+  .modal-bg.active { display: flex; animation: fadeIn .2s; }
+  .modal {
+    background: var(--panel); border: 2px solid var(--border); border-radius: 14px;
+    padding: 22px; width: 460px; max-width: 100%; max-height: 90vh; overflow-y: auto; text-align: center;
+  }
+  .modal h3 { color: var(--accent); margin-bottom: 12px; font-size: 18px; }
+  .modal p { font-size: 13px; color: #b0b0c0; margin-bottom: 12px; line-height: 1.5; }
   .modal .actions { display: flex; gap: 10px; margin-top: 16px; }
-  
+  .modal .actions .btn { flex: 1; }
+
   /* Торг */
-  .trade-offer { background: #282830; padding: 15px; border-radius: 8px; margin: 10px 0; }
-  .trade-offer .bot-name { color: #4a6fd4; font-weight: bold; font-size: 16px; }
-  .trade-offer .bot-price { font-size: 24px; color: #4cd964; margin: 10px 0; }
-  .trade-offer .bot-desc { font-size: 12px; color: #9a9aa8; font-style: italic; }
-  .btn-accept { background: #3aad5a; }
-  .btn-reject { background: #e05050; }
+  .trade-offer { background: var(--panel2); padding: 14px; border-radius: 8px; margin: 10px 0; }
+  .trade-offer .bot-name { color: var(--blue); font-weight: bold; font-size: 15px; }
+  .trade-offer .bot-desc { font-size: 12px; color: var(--muted); font-style: italic; margin-top: 3px; }
+  .trade-offer .bot-price { font-size: 26px; color: var(--green); margin: 10px 0 4px; font-weight: bold; }
+  .trade-offer .market { font-size: 12px; color: var(--muted); }
+  .patience-bar { height: 8px; background: var(--border); border-radius: 4px; margin-top: 10px; overflow: hidden; }
+  .patience-bar div { height: 100%; background: linear-gradient(90deg, var(--red), var(--accent), var(--green)); transition: width .4s; }
+  .trade-log { font-size: 11.5px; color: var(--muted); text-align: left; margin-top: 8px; max-height: 80px; overflow-y: auto; }
+  .trade-log div { padding: 2px 0; }
+  .btn-accept { background: var(--green); }
+  .btn-reject { background: var(--red); }
+  .btn-counter { background: var(--blue); }
 
-  /* Мини-игра мытья */
-  #washCanvas { background: #2a2a35; border-radius: 10px; cursor: crosshair; touch-action: none; display: block; margin: 0 auto; }
-  #washProgress { height: 10px; background: #3d3d4a; border-radius: 5px; margin-top: 12px; overflow: hidden; }
-  #washBar { height: 100%; width: 0%; background: linear-gradient(90deg, #3a9ad9, #4cd964); transition: width .1s; }
+  /* Мойка */
+  #washCanvas { background: #2a2a35; border-radius: 10px; cursor: crosshair; touch-action: none; display: block; margin: 0 auto; max-width: 100%; }
+  #washProgress { height: 10px; background: var(--border); border-radius: 5px; margin-top: 12px; overflow: hidden; }
+  #washBar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--blue), var(--green)); transition: width .1s; }
+  .wash-timer { font-size: 12px; color: var(--muted); margin-top: 6px; }
 
-  /* Мини-игра ремонта */
+  /* Ремонт */
   #fixGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 14px 0; }
-  .fix-cell { aspect-ratio: 1; background: #3d3d4a; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 22px; transition: .1s; }
-  .fix-cell.active { background: #d98a3a; }
-  .fix-cell.done { background: #3aad5a; cursor: default; }
+  .fix-cell {
+    aspect-ratio: 1; background: var(--border); border-radius: 6px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 20px; transition: .1s;
+  }
+  .fix-cell.active { background: var(--orange); animation: pulse 1s infinite; }
+  .fix-cell.done { background: var(--green); cursor: default; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
 
   /* Настройки */
-  .settings-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #3d3d4a; font-size: 14px; }
-  .settings-row input[type=range] { width: 140px; }
-  .settings-row select { background: #282830; color: #e8e8e8; border: 1px solid #3d3d4a; border-radius: 6px; padding: 6px 10px; font-size: 13px; }
-  
-  .event-banner {
-    background: #4a6fd4; color: white; padding: 8px; text-align: center;
-    font-size: 13px; font-weight: bold; display: none;
+  .settings-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; gap: 10px;
   }
-  .event-banner.active { display: block; animation: fadeIn 0.5s; }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .settings-row input[type=range] { width: 130px; }
+  .settings-row select {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px; font-size: 13px;
+  }
+
+  /* Toast */
+  .toast-wrap { position: fixed; top: 14px; right: 14px; z-index: 200; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .toast {
+    background: var(--panel2); border-left: 4px solid var(--accent); padding: 10px 14px;
+    border-radius: 8px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.5);
+    animation: slideIn .25s, fadeOut .3s 2.5s forwards; max-width: 260px;
+  }
+  .toast.good { border-left-color: var(--green); }
+  .toast.bad { border-left-color: var(--red); }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+  @keyframes fadeOut { to { opacity: 0; transform: translateX(20px); } }
+
+  /* Мобилка */
+  @media (max-width: 860px) {
+    #game { height: auto; min-height: 100vh; }
+    main { flex-direction: column; overflow: visible; }
+    .col { overflow: visible; border-right: none !important; border-bottom: 2px solid var(--border); }
+    #shopCol, #invCol, #sideCol { flex: none; }
+    .hud { gap: 10px; }
+    .hud-block b { font-size: 13px; }
+    #money { font-size: 17px; }
+    .cont-card { min-width: 110px; }
+    footer { position: sticky; bottom: 0; z-index: 50; }
+    .btn { padding: 11px 12px; min-height: 44px; }
+    .tab { min-height: 38px; display: flex; align-items: center; }
+    .inv-card .inv-actions button { min-height: 34px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
 </style>
 </head>
 <body>
 <div id="game">
   <header>
-    <h1>🔨 Auction Game v2</h1>
-    <div class="header-right">
-      <div id="reputation">Репутация:<br><b id="rep-level">Новичок (Ур. 1)</b></div>
-      <div id="money">0 ₽</div>
+    <h1>🔨 Auction Game v3</h1>
+    <div class="hud">
+      <div class="hud-block">
+        <span>Баланс</span>
+        <b id="money">0 ₽</b>
+      </div>
+      <div class="hud-block">
+        <span id="rep-title">Новичок</span>
+        <b id="rep-level">Ур. 1</b>
+        <div class="exp-bar"><div id="expFill"></div></div>
+      </div>
+      <button class="hud-btn" id="btnSettings" title="Настройки">⚙️</button>
     </div>
   </header>
-  
+
   <div class="event-banner" id="eventBanner"></div>
 
   <main>
-    <div id="left">
+    <!-- Магазин -->
+    <div id="shopCol" class="col">
       <h2>Магазин контейнеров</h2>
-      <div class="container-shop">
-        <div class="cont-btn" onclick="buyContainer('common')">
-          <div class="title">Бытовой</div>
-          <div class="price">1 500 ₽</div>
-        </div>
-        <div class="cont-btn" onclick="buyContainer('tech')">
-          <div class="title">Электроника</div>
-          <div class="price">5 000 ₽</div>
-        </div>
-        <div class="cont-btn" onclick="buyContainer('antique')">
-          <div class="title">Антиквариат</div>
-          <div class="price">15 000 ₽</div>
-        </div>
-      </div>
+      <div class="container-shop" id="shop"></div>
 
-      <h2>Содержимое</h2>
-      <div id="items"></div>
+      <h2>Коллекции</h2>
+      <div id="collections"></div>
     </div>
 
-    <div id="right">
-      <div class="tabs">
-        <div class="tab active" onclick="switchTab('log')">Лог</div>
-        <div class="tab" onclick="switchTab('stats')">Статистика</div>
+    <!-- Инвентарь -->
+    <div id="invCol" class="col">
+      <h2>Инвентарь <span id="invCount" style="color:var(--accent);"></span></h2>
+      <div class="inventory-grid" id="items"></div>
+      <p id="emptyMsg" style="color:#6a6a7a;font-size:13px;">Пусто. Купи контейнер слева.</p>
+    </div>
+
+    <!-- Боковая панель -->
+    <div id="sideCol" class="col">
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="log">Лог</div>
+        <div class="tab" data-tab="stats">Статистика</div>
+        <div class="tab" data-tab="ach">Достижения</div>
+        <div class="tab" data-tab="quests">Задания</div>
       </div>
-      <div id="tab-log" class="tab-content active">
-        <div id="log"></div>
-      </div>
+      <div id="tab-log" class="tab-content active"><div id="log"></div></div>
       <div id="tab-stats" class="tab-content">
         <div class="stat-row"><span>Всего заработано:</span> <span class="stat-val" id="stat-earned">0 ₽</span></div>
         <div class="stat-row"><span>Лучшая сделка:</span> <span class="stat-val" id="stat-best">0 ₽</span></div>
         <div class="stat-row"><span>Худшая покупка:</span> <span class="stat-val" id="stat-worst">0 ₽</span></div>
         <div class="stat-row"><span>Куплено контейнеров:</span> <span class="stat-val" id="stat-bought">0</span></div>
+        <div class="stat-row"><span>Продано предметов:</span> <span class="stat-val" id="stat-sold">0</span></div>
         <div class="stat-row"><span>Уровень (Опыт):</span> <span class="stat-val" id="stat-exp">0 / 100</span></div>
       </div>
+      <div id="tab-ach" class="tab-content"><div id="achList"></div></div>
+      <div id="tab-quests" class="tab-content"><div id="questList"></div></div>
     </div>
   </main>
 
   <footer>
-    <button class="btn-wash" id="btnWash">🧼 Мыть (200₽)</button>
-    <button class="btn-fix" id="btnFix">🔧 Чинить (500₽)</button>
-    <button class="btn-sell" id="btnSell">💰 Продать</button>
-    <button class="btn-settings" id="btnSettings">⚙️ Настройки</button>
+    <span class="hint" id="footerHint">Выбери предмет в инвентаре.</span>
+    <button class="btn btn-wash" id="btnWash">🧼 Мыть (200₽)</button>
+    <button class="btn btn-fix" id="btnFix">🔧 Чинить (500₽)</button>
+    <button class="btn btn-sell" id="btnSell">💰 Продать</button>
   </footer>
 </div>
 
-<!-- Модалка торга -->
+<!-- Toast -->
+<div class="toast-wrap" id="toasts"></div>
+
+<!-- Торг -->
 <div class="modal-bg" id="tradeModal">
   <div class="modal">
     <h3>🤝 Торг с ботом</h3>
-    <div class="trade-offer" id="tradeOfferBox">
-      <!-- Заполняется через JS -->
+    <div class="trade-offer">
+      <div class="bot-name" id="botName">—</div>
+      <div class="bot-desc" id="botDesc">—</div>
+      <div class="bot-price" id="botPrice">0 ₽</div>
+      <div class="market" id="marketHint"></div>
+      <div class="patience-bar"><div id="patienceBar" style="width:100%"></div></div>
+      <div class="trade-log" id="tradeLog"></div>
     </div>
     <div class="actions">
-      <button class="btn-accept" id="btnAcceptTrade">Принять</button>
-      <button class="btn-reject" id="btnRejectTrade">Отказать</button>
+      <button class="btn btn-accept" id="btnAcceptTrade">Принять</button>
+      <button class="btn btn-counter" id="btnCounterTrade">Торговаться</button>
+      <button class="btn btn-reject" id="btnRejectTrade">Отказать</button>
     </div>
   </div>
 </div>
 
-<!-- Модалка мытья -->
+<!-- Мойка -->
 <div class="modal-bg" id="washModal">
   <div class="modal">
     <h3>🧼 Мойка предмета</h3>
-    <p>Три мышкой (или пальцем) по грязи, чтобы отмыть. Осталось совсем чуть-чуть!</p>
+    <p>Три мышкой (или пальцем) по грязи. Успей до конца таймера!</p>
     <canvas id="washCanvas" width="360" height="240"></canvas>
     <div id="washProgress"><div id="washBar"></div></div>
-    <div class="actions"><button class="btn-settings" id="washCancel">Отмена</button></div>
+    <div class="wash-timer" id="washTimer">⏱ 12с</div>
+    <div class="actions"><button class="btn btn-settings" id="washCancel">Отмена</button></div>
   </div>
 </div>
 
-<!-- Модалка ремонта -->
+<!-- Ремонт -->
 <div class="modal-bg" id="fixModal">
   <div class="modal">
     <h3>🔧 Ремонт предмета</h3>
-    <p>Нажимай на ячейки по порядку: 1 → 2 → 3 → 4 → 5. Ошибка — начинай заново.</p>
+    <p>Нажимай на подсвеченные ячейки по порядку. Ошибка — начинай заново.</p>
     <div id="fixGrid"></div>
-    <div class="actions"><button class="btn-settings" id="fixCancel">Отмена</button></div>
+    <div class="actions"><button class="btn btn-settings" id="fixCancel">Отмена</button></div>
   </div>
 </div>
 
-<!-- Модалка настроек -->
+<!-- Настройки -->
 <div class="modal-bg" id="settingsModal">
   <div class="modal">
     <h3>⚙️ Настройки</h3>
-    <div class="settings-row">
-      <span>Громкость</span>
-      <input type="range" id="volume" min="0" max="100" value="70">
-    </div>
-    <div class="settings-row">
-      <span>Сложность ботов</span>
+    <div class="settings-row"><span>Громкость</span><input type="range" id="volume" min="0" max="100" value="70"></div>
+    <div class="settings-row"><span>Сложность ботов</span>
       <select id="difficulty">
         <option value="easy">Лёгкая</option>
         <option value="normal" selected>Обычная</option>
         <option value="hard">Сложная</option>
       </select>
     </div>
-    <div class="settings-row">
-      <span>Сброс прогресса</span>
-      <button class="btn-fix" style="flex:0;min-width:auto;padding:6px 14px;" id="btnReset">Сбросить</button>
+    <div class="settings-row"><span>Анимации</span>
+      <select id="motion"><option value="on" selected>Вкл</option><option value="off">Выкл</option></select>
     </div>
-    <div class="actions"><button class="btn-sell" id="settingsClose">Готово</button></div>
+    <div class="settings-row"><span>Сброс прогресса</span>
+      <button class="btn btn-fix" style="flex:0;min-width:auto;padding:6px 14px;" id="btnReset">Сбросить</button>
+    </div>
+    <div class="actions"><button class="btn btn-sell" id="settingsClose">Готово</button></div>
   </div>
 </div>
 
 <script>
-/* ==============================
-   ИНИЦИАЛИЗАЦИЯ И СОХРАНЕНИЕ
-   ============================== */
-const SAVE_KEY = "auction_game_v2_save";
-let state = {
+/* ============================================================
+   СОСТОЯНИЕ И СОХРАНЕНИЕ
+   ============================================================ */
+const SAVE_KEY = "auction_game_v3_save";
+const defaultState = () => ({
   money: 5000,
   container: [],
   selected: 0,
   log: [],
   exp: 0,
   level: 1,
-  stats: { earned: 0, best: 0, worst: 0, bought: 0 },
-  settings: { volume: 70, difficulty: "normal" },
+  stats: { earned: 0, best: 0, worst: 0, bought: 0, sold: 0, washed: 0, fixed: 0 },
+  settings: { volume: 70, difficulty: "normal", motion: "on" },
+  tools: { washLevel: 1, fixLevel: 1 },
+  hasExpert: false,
   activeEvent: null,
-  actionsSinceEvent: 0
-};
+  actionsSinceEvent: 0,
+  achievements: {},
+  daily: { date: "", progress: {}, claimed: {} },
+  collections: {}
+});
+let state = defaultState();
 
 function saveGame() {
-  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch(e) {}
 }
 function loadGame() {
   const saved = localStorage.getItem(SAVE_KEY);
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      state = { ...state, ...parsed };
-      // Восстанавливаем объекты
-      state.container = state.container.map(i => ({...i}));
-    } catch(e) { console.error("Save error", e); }
-  }
+  if (!saved) return;
+  try {
+    const parsed = JSON.parse(saved);
+    state = { ...defaultState(), ...parsed };
+    state.settings = { ...defaultState().settings, ...(parsed.settings||{}) };
+    state.stats = { ...defaultState().stats, ...(parsed.stats||{}) };
+    state.tools = { ...defaultState().tools, ...(parsed.tools||{}) };
+    state.daily = { ...defaultState().daily, ...(parsed.daily||{}) };
+    state.achievements = parsed.achievements || {};
+    state.collections = parsed.collections || {};
+    if (state.settings.motion === "off") document.documentElement.style.setProperty("--motion", "0");
+  } catch(e) { console.error("Save error", e); }
 }
 
-/* ==============================
-   ДАННЫЕ И ГЕНЕРАЦИЯ
-   ============================== */
+/* ============================================================
+   УТИЛИТЫ
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
+const fmt = n => Math.round(n).toLocaleString("ru-RU") + " ₽";
+
+function toast(msg, type = "") {
+  const wrap = $("toasts");
+  const el = document.createElement("div");
+  el.className = "toast " + type;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function playSound(type) {
+  // Простой синтез, чтобы не тянуть файлы
+  if (state.settings.volume <= 0) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    const vol = state.settings.volume / 100 * 0.08;
+    if (type === "success") { o.frequency.value = 660; }
+    else if (type === "error") { o.frequency.value = 180; }
+    else { o.frequency.value = 440; }
+    g.gain.value = vol;
+    o.start();
+    setTimeout(() => { o.stop(); ctx.close(); }, 120);
+  } catch(e) {}
+}
+
+/* ============================================================
+   ДАННЫЕ
+   ============================================================ */
+const CATEGORIES = {
+  phones: { icon: "📱", label: "Телефоны" },
+  wheels: { icon: "🛞", label: "Диски" },
+  caps:   { icon: "🧢", label: "Кепки" },
+  belts:  { icon: "👜", label: "Ремни" },
+  electronics: { icon: "🎧", label: "Электроника" },
+  antiques: { icon: "🏺", label: "Антиквариат" }
+};
 const BRANDS = {
   phones: [["iPhone 12","Apple",25000],["iPhone 14 Pro","Apple",80000],["Galaxy S21","Samsung",20000],["Redmi Note","Xiaomi",8000],["Nokia 3310","Nokia",3000]],
   wheels: [["BBS CH-R","BBS",40000],["Replica R17","Replica",5000],["OZ Racing","OZ",45000],["K&K R18","K&K",15000]],
@@ -288,30 +473,57 @@ const BRANDS = {
   antiques: [["Vase","Ming",150000],["Painting","Unknown",80000],["Watch","Rolex",250000],["Coin","Roman",50000]]
 };
 const COLORS = ["чёрный","белый","серый","синий","красный","зелёный","жёлтый","серебристый","золотой","розовый"];
+const CONTAINERS = {
+  common:  { title: "Бытовой", icon: "📦", price: 1500, maxRarity: "common", categories: ["caps","belts","phones"], count: 3, rareChance: 8, legendChance: 0 },
+  tech:    { title: "Электроника", icon: "💻", price: 5000, maxRarity: "rare", categories: ["phones","electronics","wheels"], count: 3, rareChance: 25, legendChance: 3 },
+  antique: { title: "Антиквариат", icon: "🏺", price: 15000, maxRarity: "legendary", categories: ["antiques"], count: 2, rareChance: 40, legendChance: 12 }
+};
+const BOTS = [
+  { name: "Bot_Dealer", desc: "Жадный перекупщик. Всегда сбивает цену.", mult: 0.7, patience: 3 },
+  { name: "Bot_Maria", desc: "Скупая коллекционерка. Ищет только идеал.", mult: 0.85, patience: 4 },
+  { name: "Bot_Alex", desc: "Азартный новичок. Может переплатить.", mult: 1.15, patience: 5 },
+  { name: "Bot_Collector", desc: "Оценщик. Платит по реальной рыночной цене.", mult: 1.0, patience: 4 }
+];
 
-function rnd(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+/* Коллекции */
+const COLLECTIONS = {
+  apple: { name: "Яблочная серия", desc: "Собери 3 предмета Apple", target: 3, reward: 5000, match: it => it.brand === "Apple" },
+  gucci: { name: "Гуччи-стайл", desc: "Собери 2 предмета Gucci", target: 2, reward: 3000, match: it => it.brand === "Gucci" },
+  antiques: { name: "Антиквар", desc: "Собери 3 антикварных предмета", target: 3, reward: 10000, match: it => it.category === "antiques" },
+  phones: { name: "Техноман", desc: "Собери 4 телефона", target: 4, reward: 6000, match: it => it.category === "phones" }
+};
 
+/* Достижения */
+const ACHIEVEMENTS = {
+  first_buy: { name: "Первый контейнер", desc: "Купи первый контейнер", reward: 500, check: s => s.stats.bought >= 1 },
+  first_sell: { name: "Первая продажа", desc: "Продай первый предмет", reward: 300, check: s => s.stats.sold >= 1 },
+  ten_sales: { name: "Десять сделок", desc: "Продай 10 предметов", reward: 2000, check: s => s.stats.sold >= 10 },
+  rich: { name: "Богач", desc: "Накопи 100 000 ₽", reward: 5000, check: s => s.money >= 100000 },
+  legend: { name: "Легенда", desc: "Найди легендарный предмет", reward: 3000, check: s => s.stats.legendFound >= 1 },
+  cleaner: { name: "Чистюля", desc: "Помой 5 предметов", reward: 1000, check: s => s.stats.washed >= 5 },
+  repairman: { name: "Мастер", desc: "Отремонтируй 5 предметов", reward: 1000, check: s => s.stats.fixed >= 5 }
+};
+
+/* ============================================================
+   ГЕНЕРАЦИЯ
+   ============================================================ */
 function generateItem(cat, maxRarity) {
-  let pool = BRANDS[cat];
+  const pool = BRANDS[cat];
   let [name, brand, base] = rnd(pool);
-  
-  // Редкость
   let rarity = "common";
-  let roll = Math.random() * 100;
+  const roll = Math.random() * 100;
   if (roll > 95) rarity = "legendary";
   else if (roll > 75) rarity = "rare";
-  
-  // Если контейнер не поддерживает легендарки, понижаем
   if (maxRarity === "rare" && rarity === "legendary") rarity = "rare";
   if (maxRarity === "common" && rarity !== "common") rarity = "common";
 
   let mult = 1;
   if (rarity === "rare") mult = 3;
   if (rarity === "legendary") mult = 10;
-  base *= mult;
+  base = Math.round(base * mult);
 
   let cond = "грязный";
-  let r = Math.random() * 100;
+  const r = Math.random() * 100;
   if (r > 80) cond = "царапины"; else if (r > 60) cond = "сломан"; else if (r > 50) cond = "чистый";
 
   return {
@@ -327,35 +539,33 @@ function itemPrice(item) {
   if (item.condition === "грязный") p *= 0.3;
   else if (item.condition === "сломан") p *= 0.2;
   else if (item.condition === "царапины") p *= 0.6;
-  
   if (item.isClean) p *= 1.5;
   if (item.isFixed) p *= 1.8;
-
-  // Влияние случайных событий
-  if (state.activeEvent && state.activeEvent.target === item.category) {
-    p *= state.activeEvent.mult;
-  }
+  if (state.activeEvent && state.activeEvent.target === item.category) p *= state.activeEvent.mult;
   return Math.max(10, Math.round(p));
 }
 
-/* ==============================
-   ЛОГИКА ИГРЫ
-   ============================== */
+/* ============================================================
+   ЛОГИКА
+   ============================================================ */
 function addLog(msg) {
   state.log.unshift(msg);
-  if (state.log.length > 10) state.log.pop();
+  if (state.log.length > 20) state.log.pop();
   triggerEventCheck();
+  checkAchievements();
   render();
   saveGame();
 }
 
 function addExp(amount) {
   state.exp += amount;
-  let nextLevelExp = state.level * 100;
-  if (state.exp >= nextLevelExp) {
-    state.exp -= nextLevelExp;
+  const need = state.level * 100;
+  if (state.exp >= need) {
+    state.exp -= need;
     state.level++;
-    addLog(`🎉 Новый уровень! Теперь вы Ур. ${state.level}. Боты платят больше.`);
+    addLog(`🎉 Новый уровень! Теперь Ур. ${state.level}. Боты платят больше.`);
+    toast(`🎉 Уровень ${state.level}!`, "good");
+    playSound("success");
   }
 }
 
@@ -370,223 +580,287 @@ function triggerEventCheck() {
       { text: "🧢 Мода на кепки прошла. Цены упали", target: "caps", mult: 0.5 }
     ];
     state.activeEvent = rnd(events);
-    document.getElementById("eventBanner").textContent = state.activeEvent.text;
-    document.getElementById("eventBanner").classList.add("active");
+    const banner = $("eventBanner");
+    banner.textContent = state.activeEvent.text;
+    banner.classList.add("active");
     setTimeout(() => {
       state.activeEvent = null;
-      document.getElementById("eventBanner").classList.remove("active");
+      banner.classList.remove("active");
+      render();
     }, 15000);
   }
 }
 
 function buyContainer(type) {
-  const prices = { common: 1500, tech: 5000, antique: 15000 };
-  const cost = prices[type];
-  if (state.money < cost) return addLog("❌ Недостаточно денег!");
-
-  state.money -= cost;
+  const cfg = CONTAINERS[type];
+  if (state.money < cfg.price) return addLog("❌ Недостаточно денег!");
+  state.money -= cfg.price;
   state.stats.bought++;
-  let items = [];
-  const count = type === "antique" ? 2 : 3;
+  if (type === "antique") state.stats.worst = Math.max(state.stats.worst, cfg.price);
 
-  for (let i = 0; i < count; i++) {
-    if (type === "common") items.push(generateItem(rnd(["caps","belts","phones"]), "common"));
-    if (type === "tech") items.push(generateItem(rnd(["phones","electronics","wheels"]), "rare"));
-    if (type === "antique") items.push(generateItem("antiques", "legendary"));
+  const items = [];
+  for (let i = 0; i < cfg.count; i++) {
+    items.push(generateItem(rnd(cfg.categories), cfg.maxRarity));
   }
-  
   state.container = items;
   state.selected = 0;
-  addLog(`🛒 Куплен ${type === 'common' ? 'бытовой' : type === 'tech' ? 'электронный' : 'антикварный'} контейнер`);
+  addLog(`🛒 Куплен ${cfg.title.toLowerCase()} контейнер (-${fmt(cfg.price)})`);
+  playSound("buy");
+  toast(`Открыт ${cfg.title.toLowerCase()} контейнер`, "");
+  render();
 }
 
-/* ==============================
-   ТОРГ
-   ============================== */
-const BOTS = [
-  { name: "Bot_Dealer", desc: "Жадный перекупщик. Всегда сбивает цену.", mult: 0.7 },
-  { name: "Bot_Maria", desc: "Скупая коллекционерка. Ищет только идеал.", mult: 0.85 },
-  { name: "Bot_Alex", desc: "Азартный новичок. Может переплатить.", mult: 1.15 },
-  { name: "Bot_Collector", desc: "Оценщик. Платит по реальной рыночной цене.", mult: 1.0 }
-];
+function checkAchievements() {
+  let changed = false;
+  for (const [key, ach] of Object.entries(ACHIEVEMENTS)) {
+    if (state.achievements[key]) continue;
+    if (ach.check(state)) {
+      state.achievements[key] = true;
+      state.money += ach.reward;
+      addLog(`🏆 Достижение: «${ach.name}» (+${fmt(ach.reward)})`);
+      toast(`🏆 ${ach.name}! +${fmt(ach.reward)}`, "good");
+      changed = true;
+    }
+  }
+  if (changed) saveGame();
+}
 
+function trackCollection(item) {
+  for (const [key, col] of Object.entries(COLLECTIONS)) {
+    if (state.collections[key]?.claimed) continue;
+    if (!col.match(item)) continue;
+    if (!state.collections[key]) state.collections[key] = { count: 0, claimed: false };
+    state.collections[key].count++;
+    if (state.collections[key].count >= col.target && !state.collections[key].claimed) {
+      state.collections[key].claimed = true;
+      state.money += col.reward;
+      addLog(`📚 Коллекция «${col.name}» собрана! +${fmt(col.reward)}`);
+      toast(`📚 ${col.name}! +${fmt(col.reward)}`, "good");
+    }
+  }
+}
+
+/* ============================================================
+   ТОРГ
+   ============================================================ */
 let currentTrade = null;
 
-document.getElementById("btnSell").onclick = () => {
+function startTrade() {
   const it = state.container[state.selected];
   if (!it) return;
-
   const base = itemPrice(it);
   const bot = rnd(BOTS);
-  
-  // Бот предлагает свою цену с учетом характера, уровня игрока и сложности
-  let diffMult = state.settings.difficulty === "easy" ? 1.2 : state.settings.difficulty === "hard" ? 0.8 : 1.0;
-  let levelBonus = 1 + (state.level * 0.05);
-  
+  const diffMult = state.settings.difficulty === "easy" ? 1.2 : state.settings.difficulty === "hard" ? 0.8 : 1.0;
+  const levelBonus = 1 + state.level * 0.05;
   let offer = Math.round(base * bot.mult * diffMult * levelBonus);
-  // Добавим немного рандома
   offer = Math.round(offer * (0.9 + Math.random() * 0.2));
 
-  currentTrade = { item: it, bot, offer, base };
-  
-  document.getElementById("tradeOfferBox").innerHTML = `
-    <div class="bot-name">${bot.name}</div>
-    <div class="bot-desc">${bot.desc}</div>
-    <div class="bot-price">${offer} ₽</div>
-    <div style="font-size:12px;color:#9a9aa8;">(Рыночная цена: ~${base}₽)</div>
-  `;
-  document.getElementById("tradeModal").classList.add("active");
-};
+  currentTrade = {
+    item: it, bot, offer, base,
+    patience: bot.patience, maxPatience: bot.patience,
+    log: []
+  };
+  currentTrade.log.push(`Бот предлагает ${fmt(offer)}`);
+  renderTrade();
+  $("tradeModal").classList.add("active");
+}
 
-document.getElementById("btnAcceptTrade").onclick = () => {
+function renderTrade() {
   if (!currentTrade) return;
-  const { offer, item } = currentTrade;
+  const t = currentTrade;
+  $("botName").textContent = t.bot.name;
+  $("botDesc").textContent = t.bot.desc;
+  $("botPrice").textContent = fmt(t.offer);
+  $("marketHint").textContent = `Рыночная цена: ~${fmt(t.base)} · Терпение бота`;
+  $("patienceBar").style.width = (t.patience / t.maxPatience * 100) + "%";
+  $("tradeLog").innerHTML = t.log.map(l => `<div>${l}</div>`).join("");
+}
+
+function counterTrade() {
+  if (!currentTrade) return;
+  const t = currentTrade;
+  if (t.patience <= 1) {
+    t.log.push("😤 Бот не выдержал и ушёл!");
+    playSound("error");
+    toast("Бот ушёл", "bad");
+    setTimeout(() => closeTrade(false), 500);
+    return;
+  }
+  t.patience--;
+  // Бот повышает ставку, но чуть меньше рыночной
+  const newOffer = Math.round(t.offer + (t.base - t.offer) * (0.25 + Math.random() * 0.2));
+  t.offer = Math.min(newOffer, Math.round(t.base * 1.05));
+  t.log.push(`Ты торгуешься → ${fmt(t.offer)} (терпение ${t.patience}/${t.maxPatience})`);
+  renderTrade();
+}
+
+function acceptTrade() {
+  if (!currentTrade) return;
+  const { offer, item, bot } = currentTrade;
   state.money += offer;
   state.stats.earned += offer;
+  state.stats.sold++;
   if (offer > state.stats.best) state.stats.best = offer;
-  
+  if (item.rarity === "legendary") state.stats.legendFound = (state.stats.legendFound || 0) + 1;
+
   addExp(item.rarity === "legendary" ? 50 : item.rarity === "rare" ? 20 : 10);
-  addLog(`💰 Продано ${item.name} за ${offer}₽ (${currentTrade.bot.name})`);
-  
+  trackCollection(item);
+  addLog(`💰 Продано ${item.name} за ${fmt(offer)} (${bot.name})`);
+  toast(`+${fmt(offer)}`, "good");
+  playSound("success");
+
   state.container.splice(state.selected, 1);
   state.selected = 0;
+  closeTrade(true);
+}
+
+function closeTrade(sold) {
   currentTrade = null;
-  document.getElementById("tradeModal").classList.remove("active");
+  $("tradeModal").classList.remove("active");
   render();
   saveGame();
-};
+}
 
-document.getElementById("btnRejectTrade").onclick = () => {
-  addLog("❌ Вы отказались от сделки");
-  currentTrade = null;
-  document.getElementById("tradeModal").classList.remove("active");
-  render();
-  saveGame();
-};
+/* ============================================================
+   МОЙКА
+   ============================================================ */
+const washCanvas = $("washCanvas");
+const washCtx = washCanvas.getContext("2d");
+let washState = null, washTimerId = null, washDeadline = 0;
 
-/* ==============================
-   МЫТЬЁ
-   ============================== */
-const $washModal = document.getElementById("washModal");
-const $washCanvas = document.getElementById("washCanvas");
-const $washBar = document.getElementById("washBar");
-const washCtx = $washCanvas.getContext("2d");
-let washState = null;
-
-document.getElementById("btnWash").onclick = () => {
+function openWash() {
   const it = state.container[state.selected];
   if (!it || it.isClean) return;
   if (state.money < 200) return addLog("❌ Нет денег на мытьё (200₽)");
-  
   washState = { cleaned: 0, target: 0.75, item: it };
-  $washBar.style.width = "0%";
-  $washModal.classList.add("active");
+  $("washBar").style.width = "0%";
+  $("washModal").classList.add("active");
   initWashCanvas();
-};
+  washDeadline = Date.now() + 12000;
+  clearInterval(washTimerId);
+  washTimerId = setInterval(() => {
+    const left = Math.max(0, washDeadline - Date.now());
+    $("washTimer").textContent = `⏱ ${(left / 1000).toFixed(1)}с`;
+    if (left <= 0) finishWash(false);
+  }, 100);
+}
 
 function initWashCanvas() {
-  const w = $washCanvas.width, h = $washCanvas.height;
+  const w = washCanvas.width, h = washCanvas.height;
+  washCtx.clearRect(0, 0, w, h);
   washCtx.fillStyle = "#2a2a35";
   washCtx.fillRect(0, 0, w, h);
   washCtx.fillStyle = "#555";
-  washCtx.beginPath(); washCtx.roundRect(w/2 - 80, h/2 - 80, 160, 160, 16); washCtx.fill();
-  
+  washCtx.beginPath();
+  if (washCtx.roundRect) washCtx.roundRect(w/2 - 80, h/2 - 80, 160, 160, 16);
+  else washCtx.rect(w/2 - 80, h/2 - 80, 160, 160);
+  washCtx.fill();
   washCtx.fillStyle = "#6b5a3a";
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 60; i++) {
     const x = Math.random() * (w - 100) + 50, y = Math.random() * (h - 100) + 50;
-    washCtx.beginPath(); washCtx.arc(x, y, Math.random() * 12 + 4, 0, Math.PI * 2); washCtx.fill();
+    washCtx.beginPath();
+    washCtx.arc(x, y, Math.random() * 10 + 4, 0, Math.PI * 2);
+    washCtx.fill();
   }
   washState.cleaned = 0;
 }
 
 let washing = false;
-function washAt(x, y) {
-  const rect = $washCanvas.getBoundingClientRect();
-  const scaleX = $washCanvas.width / rect.width;
-  const scaleY = $washCanvas.height / rect.height;
-  const cx = (x - rect.left) * scaleX;
-  const cy = (y - rect.top) * scaleY;
+function washAt(clientX, clientY) {
+  if (!washState) return;
+  const rect = washCanvas.getBoundingClientRect();
+  const sx = washCanvas.width / rect.width;
+  const sy = washCanvas.height / rect.height;
+  const cx = (clientX - rect.left) * sx;
+  const cy = (clientY - rect.top) * sy;
 
   washCtx.globalCompositeOperation = "destination-out";
-  washCtx.beginPath(); washCtx.arc(cx, cy, 22, 0, Math.PI * 2); washCtx.fill();
+  washCtx.beginPath();
+  washCtx.arc(cx, cy, 22, 0, Math.PI * 2);
+  washCtx.fill();
   washCtx.globalCompositeOperation = "source-over";
 
-  const img = washCtx.getImageData(0, 0, $washCanvas.width, $washCanvas.height);
+  const img = washCtx.getImageData(0, 0, washCanvas.width, washCanvas.height);
   let transparent = 0;
   for (let i = 3; i < img.data.length; i += 4) if (img.data[i] < 50) transparent++;
-  
   const progress = transparent / (img.data.length / 4);
   washState.cleaned = progress;
-  $washBar.style.width = Math.min(100, progress * 100 / washState.target) + "%";
-  
+  $("washBar").style.width = Math.min(100, progress * 100 / washState.target) + "%";
+
   if (progress >= washState.target) finishWash(true);
 }
 
 function finishWash(success) {
+  clearInterval(washTimerId);
   if (!washState) return;
   if (success) {
     state.money -= 200;
     washState.item.isClean = true;
+    state.stats.washed = (state.stats.washed || 0) + 1;
     addExp(5);
     addLog(`🧼 Помыто: ${washState.item.name} (-200₽)`);
+    toast("🧼 Предмет отмыт!", "good");
+    playSound("success");
+  } else {
+    addLog("⏱ Время вышло, мойка не удалась");
+    toast("Мойка не удалась", "bad");
+    playSound("error");
   }
   washState = null;
-  $washModal.classList.remove("active");
+  $("washModal").classList.remove("active");
   render(); saveGame();
 }
 
-$washCanvas.addEventListener("mousedown", e => { washing = true; washAt(e.clientX, e.clientY); });
-$washCanvas.addEventListener("mousemove", e => { if (washing) washAt(e.clientX, e.clientY); });
+washCanvas.addEventListener("mousedown", e => { washing = true; washAt(e.clientX, e.clientY); });
+washCanvas.addEventListener("mousemove", e => { if (washing) washAt(e.clientX, e.clientY); });
 window.addEventListener("mouseup", () => washing = false);
-$washCanvas.addEventListener("touchstart", e => { e.preventDefault(); washing = true; washAt(e.touches[0].clientX, e.touches[0].clientY); });
-$washCanvas.addEventListener("touchmove", e => { e.preventDefault(); if (washing) washAt(e.touches[0].clientX, e.touches[0].clientY); });
+washCanvas.addEventListener("touchstart", e => { e.preventDefault(); washing = true; washAt(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+washCanvas.addEventListener("touchmove", e => { e.preventDefault(); if (washing) washAt(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
 window.addEventListener("touchend", () => washing = false);
-document.getElementById("washCancel").onclick = () => { washState = null; $washModal.classList.remove("active"); };
+$("washCancel").onclick = () => { clearInterval(washTimerId); washState = null; $("washModal").classList.remove("active"); };
 
-/* ==============================
+/* ============================================================
    РЕМОНТ
-   ============================== */
-const $fixModal = document.getElementById("fixModal");
-const $fixGrid = document.getElementById("fixGrid");
+   ============================================================ */
 let fixState = null;
-
-document.getElementById("btnFix").onclick = () => {
+function openFix() {
   const it = state.container[state.selected];
   if (!it || it.isFixed) return;
   if (state.money < 500) return addLog("❌ Нет денег на ремонт (500₽)");
-  
   const order = [1,2,3,4,5,6,7,8,9,10,11,12].sort(() => Math.random() - 0.5).slice(0, 5);
   fixState = { item: it, order, step: 0 };
-  $fixModal.classList.add("active");
+  $("fixModal").classList.add("active");
   renderFixGrid();
-};
+}
 
 function renderFixGrid() {
-  $fixGrid.innerHTML = "";
+  const grid = $("fixGrid");
+  grid.innerHTML = "";
   for (let i = 0; i < 12; i++) {
     const cell = document.createElement("div");
     cell.className = "fix-cell";
-    const num = fixState.order[fixState.step];
-    if (i === num) cell.classList.add("active");
+    if (i === fixState.order[fixState.step]) cell.classList.add("active");
     if (fixState.order.slice(0, fixState.step).includes(i)) cell.classList.add("done");
     cell.textContent = fixState.order.slice(0, fixState.step).includes(i) ? "✓" : "";
     cell.onclick = () => handleFixClick(i);
-    $fixGrid.appendChild(cell);
+    grid.appendChild(cell);
   }
 }
 
 function handleFixClick(i) {
   if (!fixState) return;
-  const expected = fixState.order[fixState.step];
-  if (i === expected) {
+  if (i === fixState.order[fixState.step]) {
     fixState.step++;
     if (fixState.step >= fixState.order.length) {
       state.money -= 500;
       fixState.item.isFixed = true;
+      state.stats.fixed = (state.stats.fixed || 0) + 1;
       addExp(10);
       addLog(`🔧 Отремонтировано: ${fixState.item.name} (-500₽)`);
+      toast("🔧 Ремонт успешен!", "good");
+      playSound("success");
       fixState = null;
-      $fixModal.classList.remove("active");
+      $("fixModal").classList.remove("active");
       render(); saveGame();
       return;
     }
@@ -594,99 +868,255 @@ function handleFixClick(i) {
   } else {
     fixState.step = 0;
     addLog("⚠️ Ошибка! Ремонт начат заново");
+    playSound("error");
     renderFixGrid();
   }
 }
-document.getElementById("fixCancel").onclick = () => { fixState = null; $fixModal.classList.remove("active"); };
+$("fixCancel").onclick = () => { fixState = null; $("fixModal").classList.remove("active"); };
 
-/* ==============================
-   НАСТРОЙКИ И ВКЛАДКИ
-   ============================== */
-function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById(`tab-${tab}`).classList.add('active');
+/* ============================================================
+   ЕЖЕДНЕВНЫЕ ЗАДАНИЯ
+   ============================================================ */
+const DAILY_POOL = [
+  { id: "sell3", text: "Продай 3 предмета", target: 3, metric: "sold", reward: 1000 },
+  { id: "wash2", text: "Помой 2 предмета", target: 2, metric: "washed", reward: 800 },
+  { id: "fix1", text: "Отремонтируй 1 предмет", target: 1, metric: "fixed", reward: 700 },
+  { id: "buy2", text: "Купи 2 контейнера", target: 2, metric: "bought", reward: 900 }
+];
+
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+function ensureDaily() {
+  const today = todayStr();
+  if (state.daily.date !== today) {
+    state.daily = { date: today, progress: {}, claimed: {} };
+    DAILY_POOL.forEach(q => { state.daily.progress[q.id] = 0; });
+    saveGame();
+  }
 }
 
-document.getElementById("btnSettings").onclick = () => {
-  document.getElementById("volume").value = state.settings.volume;
-  document.getElementById("difficulty").value = state.settings.difficulty;
-  document.getElementById("settingsModal").classList.add("active");
-};
+function bumpDaily(metric) {
+  ensureDaily();
+  DAILY_POOL.forEach(q => {
+    if (q.metric === metric) {
+      state.daily.progress[q.id] = (state.daily.progress[q.id] || 0) + 1;
+    }
+  });
+}
 
-document.getElementById("settingsClose").onclick = () => {
-  state.settings.volume = +document.getElementById("volume").value;
-  state.settings.difficulty = document.getElementById("difficulty").value;
-  document.getElementById("settingsModal").classList.remove("active");
+function claimDaily(q) {
+  ensureDaily();
+  if (state.daily.claimed[q.id]) return;
+  if ((state.daily.progress[q.id] || 0) < q.target) return;
+  state.daily.claimed[q.id] = true;
+  state.money += q.reward;
+  addLog(`✅ Задание «${q.text}» выполнено (+${fmt(q.reward)})`);
+  toast(`Задание выполнено! +${fmt(q.reward)}`, "good");
+  render(); saveGame();
+}
+
+/* ============================================================
+   НАСТРОЙКИ И ВКЛАДКИ
+   ============================================================ */
+document.querySelectorAll(".tab").forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    $("tab-" + t.dataset.tab).classList.add("active");
+  };
+});
+
+$("btnSettings").onclick = () => {
+  $("volume").value = state.settings.volume;
+  $("difficulty").value = state.settings.difficulty;
+  $("motion").value = state.settings.motion;
+  $("settingsModal").classList.add("active");
+};
+$("settingsClose").onclick = () => {
+  state.settings.volume = +$("volume").value;
+  state.settings.difficulty = $("difficulty").value;
+  state.settings.motion = $("motion").value;
+  $("settingsModal").classList.remove("active");
   saveGame();
 };
-
-document.getElementById("btnReset").onclick = () => {
-  if (confirm("Сбросить весь прогресс? Это действие необратимо.")) {
+$("btnReset").onclick = () => {
+  if (confirm("Сбросить весь прогресс? Это необратимо.")) {
     localStorage.removeItem(SAVE_KEY);
     location.reload();
   }
 };
 
-/* ==============================
+/* ============================================================
    РЕНДЕР
-   ============================== */
-const $money = document.getElementById("money");
-const $items = document.getElementById("items");
-const $log = document.getElementById("log");
-
+   ============================================================ */
 function render() {
-  $money.textContent = state.money.toLocaleString("ru-RU") + " ₽";
-  
+  $("money").textContent = fmt(state.money);
   const repLevels = ["Новичок", "Любитель", "Барыга", "Профи", "Магнат"];
-  let rTitle = repLevels[Math.min(state.level - 1, repLevels.length - 1)] || "Магнат";
-  document.getElementById("rep-level").textContent = `${rTitle} (Ур. ${state.level})`;
+  const rTitle = repLevels[Math.min(state.level - 1, repLevels.length - 1)];
+  $("rep-title").textContent = rTitle;
+  $("rep-level").textContent = "Ур. " + state.level;
+  $("expFill").style.width = Math.min(100, state.exp / (state.level * 100) * 100) + "%";
 
-  $items.innerHTML = "";
+  // Магазин
+  const shop = $("shop");
+  shop.innerHTML = "";
+  for (const [type, cfg] of Object.entries(CONTAINERS)) {
+    const can = state.money >= cfg.price;
+    const card = document.createElement("div");
+    card.className = "cont-card" + (can ? "" : " disabled");
+    card.innerHTML = `
+      <div class="icon">${cfg.icon}</div>
+      <div class="title">${cfg.title}</div>
+      <div class="rarity-hint">Редкий: ${cfg.rareChance}%${cfg.legendChance ? " · Легенда: " + cfg.legendChance + "%" : ""}</div>
+      <div class="price">${fmt(cfg.price)}</div>
+      ${can ? "" : `<div class="missing">Не хватает ${fmt(cfg.price - state.money)}</div>`}
+      <button class="cta" ${can ? "" : "disabled"}>Купить</button>
+    `;
+    card.querySelector(".cta").onclick = () => buyContainer(type);
+    shop.appendChild(card);
+  }
+
+  // Коллекции
+  const colBox = $("collections");
+  colBox.innerHTML = "";
+  for (const [key, col] of Object.entries(COLLECTIONS)) {
+    const data = state.collections[key] || { count: 0, claimed: false };
+    const pct = Math.min(100, data.count / col.target * 100);
+    const div = document.createElement("div");
+    div.className = "collection";
+    div.innerHTML = `
+      <div class="c-title">${col.name} ${data.claimed ? "✅" : ""}</div>
+      <div class="c-progress"><div style="width:${pct}%"></div></div>
+      <div class="c-desc">${col.desc} · ${Math.min(data.count, col.target)}/${col.target} · Награда: ${fmt(col.reward)}</div>
+    `;
+    colBox.appendChild(div);
+  }
+
+  // Инвентарь
+  const items = $("items");
+  items.innerHTML = "";
+  $("invCount").textContent = state.container.length ? `(${state.container.length})` : "";
   if (state.container.length === 0) {
-    $items.innerHTML = '<p style="color:#6a6a7a;font-size:14px;">Пусто. Купи контейнер выше.</p>';
+    $("emptyMsg").style.display = "block";
   } else {
+    $("emptyMsg").style.display = "none";
     state.container.forEach((it, i) => {
-      const div = document.createElement("div");
-      div.className = `item rarity-${it.rarity}` + (i === state.selected ? " selected" : "");
-      const status = [];
-      if (!it.isClean) status.push('<span class="status-dirty">грязный</span>');
-      if (!it.isFixed) status.push('<span class="status-broken">сломан</span>');
-      if (it.isClean && it.isFixed) status.push('<span class="status-ok">готов</span>');
-      
-      const rLabel = it.rarity === "legendary" ? "⭐ ЛЕГЕНДА" : it.rarity === "rare" ? "💎 РЕДКИЙ" : "";
-      
-      div.innerHTML = `
-        <div class="name">${it.brand} ${it.name} <span style="color:#6a6a7a;font-size:12px;">(${it.color})</span> ${rLabel}</div>
-        <div class="meta">
-          <span>${status.join(" · ")}</span>
-          <span class="price">${itemPrice(it)}₽</span>
+      const price = itemPrice(it);
+      const tags = [];
+      if (!it.isClean) tags.push('<span class="tag tag-dirty">грязный</span>');
+      if (!it.isFixed) tags.push('<span class="tag tag-broken">сломан</span>');
+      if (it.isClean && it.isFixed) tags.push('<span class="tag tag-ok">готов</span>');
+      if (it.rarity === "rare") tags.push('<span class="tag tag-rare">редкий</span>');
+      if (it.rarity === "legendary") tags.push('<span class="tag tag-legend">легенда</span>');
+
+      const card = document.createElement("div");
+      card.className = `inv-card rarity-${it.rarity}` + (i === state.selected ? " selected" : "");
+      card.innerHTML = `
+        <div class="inv-icon">${CATEGORIES[it.category].icon}</div>
+        <div class="inv-name">${it.name}</div>
+        <div class="inv-brand">${it.brand} · ${it.color}</div>
+        <div class="inv-tags">${tags.join("")}</div>
+        <div class="inv-price">${fmt(price)}</div>
+        <div class="inv-actions">
+          <button class="btn-wash" ${it.isClean || state.money < 200 ? "disabled" : ""}>🧼</button>
+          <button class="btn-fix" ${it.isFixed || state.money < 500 ? "disabled" : ""}>🔧</button>
+          <button class="btn-sell">💰</button>
         </div>
       `;
-      div.onclick = () => { state.selected = i; render(); };
-      $items.appendChild(div);
+      card.onclick = (e) => {
+        if (e.target.tagName === "BUTTON") return;
+        state.selected = i; render();
+      };
+      card.querySelector(".btn-wash").onclick = () => { state.selected = i; openWash(); };
+      card.querySelector(".btn-fix").onclick = () => { state.selected = i; openFix(); };
+      card.querySelector(".btn-sell").onclick = () => { state.selected = i; startTrade(); };
+      items.appendChild(card);
     });
   }
 
-  $log.innerHTML = state.log.map(m => `<div>${m}</div>`).join("");
-  
-  // Статистика
-  document.getElementById("stat-earned").textContent = state.stats.earned.toLocaleString() + " ₽";
-  document.getElementById("stat-best").textContent = state.stats.best.toLocaleString() + " ₽";
-  document.getElementById("stat-worst").textContent = state.stats.worst.toLocaleString() + " ₽";
-  document.getElementById("stat-bought").textContent = state.stats.bought;
-  document.getElementById("stat-exp").textContent = `${state.exp} / ${state.level * 100}`;
+  // Лог
+  $("log").innerHTML = state.log.map(m => `<div>${m}</div>`).join("");
 
-  // Кнопки
+  // Статистика
+  $("stat-earned").textContent = fmt(state.stats.earned);
+  $("stat-best").textContent = fmt(state.stats.best);
+  $("stat-worst").textContent = fmt(state.stats.worst);
+  $("stat-bought").textContent = state.stats.bought;
+  $("stat-sold").textContent = state.stats.sold;
+  $("stat-exp").textContent = `${state.exp} / ${state.level * 100}`;
+
+  // Достижения
+  $("achList").innerHTML = Object.entries(ACHIEVEMENTS).map(([k, a]) => {
+    const done = state.achievements[k];
+    return `<div class="ach ${done ? "done" : ""}">
+      <span>${done ? "✅" : "⬜"} ${a.name}<br><small style="color:var(--muted);font-size:11px;">${a.desc}</small></span>
+      <span class="ach-reward">${fmt(a.reward)}</span>
+    </div>`;
+  }).join("");
+
+  // Задания
+  ensureDaily();
+  $("questList").innerHTML = DAILY_POOL.map(q => {
+    const prog = state.daily.progress[q.id] || 0;
+    const claimed = state.daily.claimed[q.id];
+    const canClaim = prog >= q.target && !claimed;
+    return `<div class="ach ${claimed ? "done" : ""}">
+      <span>${claimed ? "✅" : "⬜"} ${q.text}<br><small style="color:var(--muted);font-size:11px;">${Math.min(prog, q.target)}/${q.target}</small></span>
+      <span>
+        ${canClaim ? `<button class="btn btn-sell" style="padding:6px 10px;font-size:11px;" data-claim="${q.id}">Забрать</button>` : `<span class="ach-reward">${fmt(q.reward)}</span>`}
+      </span>
+    </div>`;
+  }).join("");
+  document.querySelectorAll("[data-claim]").forEach(btn => {
+    btn.onclick = () => {
+      const q = DAILY_POOL.find(x => x.id === btn.dataset.claim);
+      if (q) claimDaily(q);
+    };
+  });
+
+  // Кнопки футера
   const selIt = state.container[state.selected];
-  document.getElementById("btnWash").disabled = !selIt || selIt.isClean || state.money < 200;
-  document.getElementById("btnFix").disabled = !selIt || selIt.isFixed || state.money < 500;
-  document.getElementById("btnSell").disabled = !selIt;
+  $("btnWash").disabled = !selIt || selIt.isClean || state.money < 200;
+  $("btnFix").disabled = !selIt || selIt.isFixed || state.money < 500;
+  $("btnSell").disabled = !selIt;
+  $("footerHint").textContent = selIt
+    ? `Выбрано: ${selIt.name} · ${fmt(itemPrice(selIt))}`
+    : "Выбери предмет в инвентаре.";
 }
 
-// Старт
+/* ============================================================
+   ОБРАБОТЧИКИ
+   ============================================================ */
+$("btnWash").onclick = openWash;
+$("btnFix").onclick = openFix;
+$("btnSell").onclick = startTrade;
+$("btnAcceptTrade").onclick = acceptTrade;
+$("btnCounterTrade").onclick = counterTrade;
+$("btnRejectTrade").onclick = () => {
+  addLog("❌ Вы отказались от сделки");
+  closeTrade(false);
+};
+
+/* Метрики для заданий — оборачиваем ключевые действия */
+const _buy = buyContainer;
+buyContainer = function(type) { _buy(type); bumpDaily("bought"); saveGame(); };
+const _finishWash = finishWash;
+finishWash = function(s) { if (s) bumpDaily("washed"); _finishWash(s); };
+const _handleFix = handleFixClick;
+handleFixClick = function(i) {
+  const before = fixState ? fixState.step : 0;
+  _handleFix(i);
+  if (!fixState && state.container.some(x => x.isFixed)) bumpDaily("fixed");
+};
+const _acceptTrade = acceptTrade;
+acceptTrade = function() { _acceptTrade(); bumpDaily("sold"); };
+
+/* ============================================================
+   СТАРТ
+   ============================================================ */
 loadGame();
+ensureDaily();
 if (state.log.length === 0) addLog("Добро пожаловать на аукцион! Купи контейнер, чтобы начать.");
 render();
 </script>
